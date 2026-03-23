@@ -25,12 +25,19 @@
 规则示例：
 
 process=cloudmusic.exe class=DesktopLyrics title=桌面歌词
+
 process=QQMusic.exe class=TXGuiFoundation title=桌面歌词
+
 process=KuGou.exe class=kugou_ui title=桌面歌词 - 酷狗音乐
+
 process=kwmusic.exe class=KwDeskLyricWnd title=
+
 process=foobar2000.exe class=uie_eslyric_desktop_wnd_class title=
+
 process=foobar2000.exe class=floating_eslyric_wnd_class title=
+
 process=WeSing.exe class=ATL: title=CLyricRenderWnd
+
 process=WeSing.exe class=ATL: title=CScoreWnd
 
 ## 作者
