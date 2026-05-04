@@ -32,10 +32,9 @@ DWORD GetWindowThreadProcessId(HWND hWnd, DWORD* lpdwProcessId);
 
 HANDLE OpenProcess(DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId);
 BOOL CloseHandle(HANDLE hObject);
-BOOL QueryFullProcessImageNameW(HANDLE hProcess, DWORD dwFlags, wchar_t* lpExeName, DWORD* lpdwSize);
+BOOL QueryFullProcessImageNameW(HANDLE Process, DWORD dwFlags, wchar_t* lpExeName, DWORD* lpdwSize);
 
-int WideCharToMultiByte(UINT CodePage, DWORD dwFlags, const wchar_t* lpWideCharStr, int cchWideChar,
-                        char* lpMultiByteStr, int cbMultiByte, const char* lpDefaultChar, BOOL* lpUsedDefaultChar);
+int WideCharToMultiByte(UINT CodePage, DWORD dwFlags, const wchar_t* lpWideCharStr, int cchWideChar, char* lpMultiByteStr, int cbMultiByte, const char* lpDefaultChar, BOOL* lpUsedDefaultChar);
 ]]
 
 local WIN = {
@@ -70,8 +69,6 @@ process=WeSing.exe class=ATL: title=CScoreWnd
 }
 
 local state = {
-    enable_timer = false,
-    interval = 10,
     enable_pwt = true,
     enable_pwf = true,
     patterns_pwt = {},
@@ -181,8 +178,7 @@ local function set_taskbar_visible(hwnd, safe_parent)
         end
     end
 
-    user32.SetWindowPos(hwnd, ffi.NULL, 0,0,0,0,
-        bit.bor(WIN.SWP_NOMOVE,WIN.SWP_NOSIZE,WIN.SWP_NOZORDER,WIN.SWP_FRAMECHANGED))
+    user32.SetWindowPos(hwnd, ffi.NULL, 0,0,0,0, bit.bor(WIN.SWP_NOMOVE,WIN.SWP_NOSIZE,WIN.SWP_NOZORDER,WIN.SWP_FRAMECHANGED))
 end
 
 local function wildcard_match(str, pattern)
@@ -201,8 +197,7 @@ local function match_pattern_rule(pname, cls, title, pattern)
     local pname_simple = pname:gsub("%.exe$", ""):gsub("%.EXE$", "")
     local proc_match = false
     if proc_pat ~= "" then
-        proc_match = wildcard_match(pname, proc_pat) or 
-                     wildcard_match(pname_simple, proc_pat_simple)
+        proc_match = wildcard_match(pname, proc_pat) or wildcard_match(pname_simple, proc_pat_simple)
     else
         proc_match = true
     end
@@ -215,7 +210,6 @@ local function match_pattern_rule(pname, cls, title, pattern)
     end
 
     if not wildcard_match(title, title_pat) then return false end
-
     return true
 end
 
@@ -269,7 +263,6 @@ local function process_windows(windows)
     return matched_pwt, matched_pwf
 end
 
--- 单独的输出窗口信息函数
 local function print_windows_info()
     process_cache = {}
     process_original_cache = {}
@@ -301,21 +294,12 @@ local function run_detection()
     end
 end
 
-local function tick() 
-    local success, err = pcall(run_detection)
-    if not success then
-        log_info("定时检测异常: " .. tostring(err))
-    end
-end
-
 function script_load(settings)
     state.is_loaded = true
     log_info("脚本开始加载")
     
     script_defaults(settings)
     
-    state.enable_timer = obs.obs_data_get_bool(settings,"timer")
-    state.interval = obs.obs_data_get_int(settings,"interval")
     state.enable_pwt = obs.obs_data_get_bool(settings,"enable_pwt")
     state.enable_pwf = obs.obs_data_get_bool(settings,"enable_pwf")
     state.patterns_pwt = parse_lines(obs.obs_data_get_string(settings,"patterns_pwt"))
@@ -326,9 +310,6 @@ end
 
 function script_unload()
     log_info("脚本开始卸载")
-    
-    obs.timer_remove(tick)
-    log_info("已停止定时检测定时器")
     
     process_cache = {}
     process_original_cache = {}
@@ -342,8 +323,6 @@ function script_unload()
 end
 
 function script_defaults(settings)
-    obs.obs_data_set_default_bool(settings,"timer",false)
-    obs.obs_data_set_default_int(settings,"interval",10)
     obs.obs_data_set_default_bool(settings,"enable_pwt",true)
     obs.obs_data_set_default_bool(settings,"enable_pwf",true)
     obs.obs_data_set_default_string(settings,"patterns_pwt",DEFAULT_CONFIG.patterns_pwt)
@@ -359,7 +338,7 @@ function script_properties()
         end
         return true 
     end)
-    -- 添加输出窗口信息按钮
+
     obs.obs_properties_add_button(p,"print_windows_info","输出窗口信息",function()
         local success, err = pcall(print_windows_info)
         if not success then
@@ -367,8 +346,6 @@ function script_properties()
         end
         return true
     end)
-    obs.obs_properties_add_bool(p,"timer","定时运行")
-    obs.obs_properties_add_int(p,"interval","检测间隔(秒)",1,60,1)
 
     obs.obs_properties_add_bool(p,"enable_pwt","启用规则（每行一个 格式：process=进程名 class=类名 title=标题名）")
     obs.obs_properties_add_text(p,"patterns_pwt","桌面歌词pwt",obs.OBS_TEXT_MULTILINE)
@@ -380,20 +357,13 @@ end
 function script_update(settings)
     if not state.is_loaded then return end
     
-    state.enable_timer = obs.obs_data_get_bool(settings,"timer")
-    state.interval = obs.obs_data_get_int(settings,"interval")
-
     state.enable_pwt = obs.obs_data_get_bool(settings,"enable_pwt")
     state.enable_pwf   = obs.obs_data_get_bool(settings,"enable_pwf")
 
     state.patterns_pwt = parse_lines(obs.obs_data_get_string(settings,"patterns_pwt"))
     state.patterns_pwf = parse_lines(obs.obs_data_get_string(settings,"patterns_pwf"))
 
-    obs.timer_remove(tick)
-    if state.enable_timer then
-        obs.timer_add(tick,state.interval*1000)
-        log_info(string.format("已启动定时检测，间隔: %d 秒", state.interval))
-    end
+    log_info("配置已更新")
 end
 
 function script_description()
